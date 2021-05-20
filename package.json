@@ -1,0 +1,10 @@
+{
+  "name": "ws-speed-test",
+  "version": "0.1.0",
+  "dependencies": {
+    "percentile": "^1.4.0",
+    "stats-lite": "^2.2.0",
+    "uuid": "^8.3.2",
+    "ws": "^7.4.5"
+  }
+}
