@@ -8,17 +8,24 @@ const url = require('url');
 console.log('Creating HTTP server...');
 const script = '\
     <body>\
-      <div><b>Connection status:</b></div>\
-      <div id="status">Status:</div>\
-      <br>\
       <div><b>Latency statistic:</b></div>\
       <div id="latency">Logs:</div>\
+      <br>\
+      <div><b>Connection status:</b></div>\
+      <div id="status">Status:</div>\
+      <div id="status-list"></div>\
     </body>\
     <script>\
-      window.onload = function() {\
+      let isWsOpen = false;\
+      function connect() {\
         const ws = new WebSocket("ws://" + location.hostname + ":8000/ws");\
         function logStatus(text) {\
-          document.getElementById("status").innerHTML = text;\
+          document.getElementById("status").innerHTML = "Current status: " + text;\
+        }\
+        function addStatusHistory(text) {\
+          const node = document.createElement("div");\
+          node.appendChild(document.createTextNode(text));\
+          document.getElementById("status-list").appendChild(node);\
         }\
         function logLatency(text) {\
           document.getElementById("latency").innerHTML = text;\
@@ -26,9 +33,14 @@ const script = '\
         logStatus("connecting to websocket server @" + ws.url);\
         ws.onopen = function() {\
           logStatus("connected");\
+          isWsOpen = true;\
         };\
         ws.onclose = function(e) {\
-          logStatus("disconnected @ " + new Date());\
+          if (isWsOpen) {\
+            addStatusHistory("disconnected @ " + new Date());\
+          }\
+          setTimeout(() => connect(), 1000);\
+          isWsOpen = false;\
         };\
         ws.onmessage = function(e) {\
           const parts = e.data.split("|");\
@@ -51,6 +63,7 @@ const script = '\
           }\
         };\
       };\
+      window.onload = connect();\
     </script>\
   ';
 
@@ -76,7 +89,7 @@ wss.on('connection', (ws, req) => {
 
         setTimeout(() => {
             ws.send(['echo', uuidv4(), currentLatency, Date.now()].join('|'));
-        }, 50);
+        }, 100);
     });
 
     // Send an initiate message, client will echo back upon receiving this message
