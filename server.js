@@ -13,6 +13,7 @@ const script = '\
       <br>\
       <div><b>Connection status:</b></div>\
       <div id="status">Status:</div>\
+      <div>------------------</div>\
       <div id="status-list"></div>\
     </body>\
     <script>\
@@ -25,7 +26,7 @@ const script = '\
         function addStatusHistory(text) {\
           const node = document.createElement("div");\
           node.appendChild(document.createTextNode(text));\
-          document.getElementById("status-list").appendChild(node);\
+          document.getElementById("status-list").prepend(node);\
         }\
         function logLatency(text) {\
           document.getElementById("latency").innerHTML = text;\
@@ -37,6 +38,9 @@ const script = '\
         };\
         ws.onclose = function(e) {\
           if (isWsOpen) {\
+            const prevStats = document.getElementById("latency").innerText;\
+            addStatusHistory("------------------");\
+            addStatusHistory(prevStats);\
             addStatusHistory("disconnected @ " + new Date());\
           }\
           setTimeout(() => connect(), 1000);\
