@@ -19,7 +19,7 @@ const script = '\
     <script>\
       let isWsOpen = false;\
       function connect() {\
-        const ws = new WebSocket("ws://" + location.hostname + ":8000/ws");\
+        const ws = new WebSocket("ws://" + location.hostname + ":7979/ws");\
         function logStatus(text) {\
           document.getElementById("status").innerHTML = "Current status: " + text;\
         }\
@@ -135,5 +135,5 @@ server.on('upgrade', function upgrade(request, socket, head) {
     }
 });
 
-server.listen(8000);
-console.log('HTTP server listening on port 8000');
+server.listen(7979);
+console.log('HTTP server listening on port 7979');
