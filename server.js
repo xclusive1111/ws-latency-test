@@ -19,7 +19,7 @@ const script = '\
     <script>\
       let isWsOpen = false;\
       function connect() {\
-        const ws = new WebSocket("ws://" + location.hostname + ":7979/ws");\
+        const ws = new WebSocket("ws://" + location.hostname + ":8000/ws");\
         function logStatus(text) {\
           document.getElementById("status").innerHTML = "Current status: " + text;\
         }\
