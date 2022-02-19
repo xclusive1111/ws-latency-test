@@ -40,7 +40,8 @@ wss.on('connection', (ws, req) => {
 
     // Calculate latency stats every 1 second
     setInterval(() => {
-        if (currentLatency) {
+        // Only calculate if at least 200 data points are collected
+        if (latencies.length >= 200) {
             const data = ['stats'];
             const result = percentile([75, 95, 99], latencies);
 
