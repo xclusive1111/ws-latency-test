@@ -80,11 +80,11 @@
     // A counter to keep track of number of stats samples
     let statsCnt = 0;
 
-    // Take a stats snapshot every 100 stats samples
-    const statsWindowCnt = +(queries.get("stats_window_cnt") || 100);
+    // Take a stats snapshot every 10 stats samples
+    const statsWindowCnt = +(queries.get("stats_window_cnt") || 10);
 
-    // Maximum number of stats snapshots
-    const maxStatsCnt = +(queries.get("max_stats_cnt") || 100);
+    // Maximum number of stats snapshots (chart data points)
+    const maxStatsCnt = +(queries.get("max_stats_cnt") || 1000);
 
     // Maximum number of latencies collected
     const maxSampleCnt = +(queries.get("max_sample_cnt") || 1000);
