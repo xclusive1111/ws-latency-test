@@ -1,84 +1,23 @@
 const http = require('http');
 const WebSocket = require('ws');
+const fs = require('fs');
 const {v4: uuidv4} = require('uuid');
 const percentile = require("percentile");
 const url = require('url');
+const index = fs.readFileSync(__dirname + '/index.html');
 
 
 console.log('Creating HTTP server...');
-const script = '\
-    <body>\
-      <div><b>Latency statistic:</b></div>\
-      <div id="latency">Logs:</div>\
-      <br>\
-      <div><b>Connection status:</b></div>\
-      <div id="status">Status:</div>\
-      <div>------------------</div>\
-      <div id="status-list"></div>\
-    </body>\
-    <script>\
-      let isWsOpen = false;\
-      function connect() {\
-        const ws = new WebSocket("ws://" + location.hostname + ":8000/ws");\
-        function logStatus(text) {\
-          document.getElementById("status").innerHTML = "Current status: " + text;\
-        }\
-        function addStatusHistory(text) {\
-          const node = document.createElement("div");\
-          node.appendChild(document.createTextNode(text));\
-          document.getElementById("status-list").prepend(node);\
-        }\
-        function logLatency(text) {\
-          document.getElementById("latency").innerHTML = text;\
-        }\
-        logStatus("connecting to websocket server @" + ws.url);\
-        ws.onopen = function() {\
-          logStatus("connected");\
-          isWsOpen = true;\
-        };\
-        ws.onclose = function(e) {\
-          if (isWsOpen) {\
-            const prevStats = document.getElementById("latency").innerText;\
-            addStatusHistory("------------------");\
-            addStatusHistory(prevStats);\
-            addStatusHistory("disconnected @ " + new Date());\
-          }\
-          setTimeout(() => connect(), 1000);\
-          isWsOpen = false;\
-        };\
-        ws.onmessage = function(e) {\
-          const parts = e.data.split("|");\
-          const cmd = parts[0];\
-          if (cmd === "echo") {\
-            ws.send(e.data);\
-            return;\
-          }\
-          if (cmd === "stats") {\
-            const data = [\
-              "now: " + parts[6] + "ms",\
-              "min: " + parts[1] + "ms",\
-              "max: " + parts[2] + "ms",\
-              "75th percentile: " + parts[3] + "ms",\
-              "95th percentile: " + parts[4] + "ms",\
-              "99th percentile: " + parts[5] + "ms",\
-              "Updated at: " + new Date().toString(),\
-            ].join("<br>");\
-            logLatency(data);\
-          }\
-        };\
-      };\
-      window.onload = connect();\
-    </script>\
-  ';
 
 const wss = new WebSocket.Server({noServer: true});
 wss.on('connection', (ws, req) => {
     console.log("New websocket connection  %s", req.socket.remoteAddress);
+    const interval = +(req?.query?.msg_interval || 100);
     const latencies = [];
-    const maxLatencyLength = 1000;
+    const maxLatencyCnt = +(req?.query?.max_sample_cnt || 1000);
 
     function addLatency(latency) {
-        if (latencies.length === maxLatencyLength) {
+        if (latencies.length === maxLatencyCnt) {
             latencies.shift();
         }
 
@@ -92,8 +31,8 @@ wss.on('connection', (ws, req) => {
         addLatency(currentLatency);
 
         setTimeout(() => {
-            ws.send(['echo', uuidv4(), currentLatency, Date.now()].join('|'));
-        }, 100);
+            ws.send(['echo', uuidv4() + uuidv4() + uuidv4(), currentLatency, Date.now()].join('|'));
+        }, interval);
     });
 
     // Send an initiate message, client will echo back upon receiving this message
@@ -120,14 +59,16 @@ wss.on('connection', (ws, req) => {
 const server = http.createServer((req, res) => {
     console.log("%s %s", req.method, req.url);
     res.writeHead(200, {'Content-Type': 'text/html'});
-    res.end(script);
+    res.end(index);
 });
 
 server.on('upgrade', function upgrade(request, socket, head) {
-    const pathname = url.parse(request.url).pathname;
+    const parse = url.parse(request.url, true);
+    const pathname = parse.pathname;
 
     if (pathname === '/ws') {
         wss.handleUpgrade(request, socket, head, function done(ws) {
+            request.query = parse.query;
             wss.emit('connection', ws, request);
         });
     } else {
@@ -135,5 +76,5 @@ server.on('upgrade', function upgrade(request, socket, head) {
     }
 });
 
-server.listen(7979);
-console.log('HTTP server listening on port 7979');
+server.listen(8000);
+console.log('HTTP server listening on port 8000');

@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Websocket latency stats</title>
+  <style>
+      #container {
+          display: flex;
+          justify-content: space-between;
+          width: 100%;
+      }
+
+      #left {
+          width: 25%;
+          height: 95vh;
+          overflow-y: scroll;
+      }
+
+      #right {
+          width: 75%;
+      }
+
+      #chartContainer {
+          height: 450px;
+          width: 100%;
+      }
+
+      /* width */
+      ::-webkit-scrollbar {
+          width: 5px;
+      }
+
+      /* Track */
+      ::-webkit-scrollbar-track {
+          background: #f1f1f1;
+      }
+
+      /* Handle */
+      ::-webkit-scrollbar-thumb {
+          background: #888;
+      }
+
+      /* Handle on hover */
+      ::-webkit-scrollbar-thumb:hover {
+          background: #555;
+      }
+  </style>
+  <script src="https://canvasjs.com/assets/script/canvasjs.min.js"></script>
+</head>
+<body>
+<div id="container">
+  <div id="left">
+    <div><b>Latency statistic:</b></div>
+    <div id="latency">Logs:</div>
+    <br>
+    <div><b>Connection status:</b></div>
+    <div id="status">Status:</div>
+    <div>------------------</div>
+
+    <br>
+    <div id="history">
+      <b>Disconnect history:</b>
+      <div id="status-list"></div>
+    </div>
+  </div>
+
+  <div id="right">
+    <div id="chartContainer"></div>
+  </div>
+</div>
+
+</body>
+
+<script>
+    const queries = new URLSearchParams(window.location.search);
+    let isWsOpen = false;
+    const history = document.getElementById("history");
+    history.style.display = "none";
+
+    // A counter to keep track of number of stats samples
+    let statsCnt = 0;
+
+    // Take a stats snapshot every 100 stats samples
+    const statsWindowCnt = +(queries.get("stats_window_cnt") || 100);
+
+    // Maximum number of stats snapshots
+    const maxStatsCnt = +(queries.get("max_stats_cnt") || 100);
+
+    // Maximum number of latencies collected
+    const maxSampleCnt = +(queries.get("max_sample_cnt") || 1000);
+
+    console.log(`StatsWindowCnt: ${statsWindowCnt}`, `MaxStatsCnt: ${maxStatsCnt}, MaxSampleCnt: ${maxSampleCnt}`);
+
+    const _75th = [];
+    const _95th = [];
+    const _99th = [];
+    const chart = new CanvasJS.Chart("chartContainer", {
+        animationEnabled: true,
+        theme: "light2",
+        title: {
+            text: "Websocket latency statistic"
+        },
+        axisX: {
+            title: "Times",
+            valueFormatString: "hh:mm:ss",
+            crosshair: {
+                enabled: true,
+                snapToDataPoint: true
+            }
+        },
+        axisY: {
+            title: "Millisecond",
+            includeZero: true,
+            crosshair: {
+                enabled: true
+            }
+        },
+        toolTip: {
+            shared: true
+        },
+        legend: {
+            cursor: "pointer",
+            verticalAlign: "bottom",
+            horizontalAlign: "left",
+            dockInsidePlotArea: true,
+            itemclick: toogleDataSeries
+        },
+        data: [
+            {
+                type: "line",
+                showInLegend: true,
+                name: "75th",
+                xValueFormatString: "DD/MM/YYYY hh:mm:ss",
+                dataPoints: _75th,
+            },
+            {
+                type: "line",
+                showInLegend: true,
+                name: "95th",
+                dataPoints: _95th,
+            },
+            {
+                type: "line",
+                showInLegend: true,
+                name: "99th",
+                dataPoints: _99th,
+            }
+        ]
+    });
+
+    chart.render();
+
+    function connect() {
+        const port = location.port ? `:${location.port}` : '';
+        const url = "ws://" + location.hostname + port + "/ws" + window.location.search;
+        const ws = new WebSocket(url);
+        let currentStats = [];
+
+        function logStatus(text) {
+            document.getElementById("status").innerHTML = "Current status: " + text;
+        }
+
+        function addStatusHistory(text) {
+            history.style.display = "block";
+            const node = document.createElement("div");
+            node.innerHTML = text;
+            document.getElementById("status-list").prepend(node);
+        }
+
+        function logLatency(text) {
+            document.getElementById("latency").innerHTML = text;
+        }
+
+        logStatus("connecting to websocket server @" + ws.url);
+        ws.onopen = function () {
+            logStatus("connected");
+            isWsOpen = true;
+        };
+        ws.onclose = function (e) {
+            if (isWsOpen) {
+                addStatusHistory("------------------");
+                addStatusHistory(currentStats.join("<br>"));
+                addStatusHistory(`disconnected @ ${fmtCurrentTime(new Date())}`);
+            }
+            setTimeout(() => connect(), 1000);
+            isWsOpen = false;
+        };
+
+        ws.onmessage = function (e) {
+            const parts = e.data.split("|");
+            const cmd = parts[0];
+            if (cmd === "echo") {
+                ws.send(e.data);
+                return;
+            }
+
+            if (statsCnt === statsWindowCnt) statsCnt = 0;
+            statsCnt++;
+
+            if (cmd === "stats") {
+                currentStats = [
+                    "now: " + parts[6] + "ms",
+                    "min: " + parts[1] + "ms",
+                    "max: " + parts[2] + "ms",
+                    "75th percentile: " + parts[3] + "ms",
+                    "95th percentile: " + parts[4] + "ms",
+                    "99th percentile: " + parts[5] + "ms",
+                ];
+
+                const now = new Date();
+                logLatency([...currentStats, "Updated at: " + fmtCurrentTime(now)].join("<br>"));
+
+                if (_75th.length === maxStatsCnt) {
+                    _75th.shift();
+                    _95th.shift();
+                    _99th.shift();
+                    chart.render();
+                }
+
+                if (statsCnt === statsWindowCnt) {
+                    _75th.push({x: now, y: +parts[3]})
+                    _95th.push({x: now, y: +parts[4]})
+                    _99th.push({x: now, y: +parts[5]})
+                    chart.render();
+                }
+            }
+        };
+    }
+
+    function fmtCurrentTime(d) {
+        return `${d.toLocaleDateString('vi-vn')} ${d.toLocaleTimeString()}`;
+    }
+
+    function toogleDataSeries(e) {
+        e.dataSeries.visible = !(typeof (e.dataSeries.visible) === "undefined" || e.dataSeries.visible);
+        chart.render();
+    }
+
+    window.onload = connect
+</script>
+</html>
