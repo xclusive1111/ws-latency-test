@@ -13,6 +13,7 @@ const wss = new WebSocket.Server({noServer: true});
 wss.on('connection', (ws, req) => {
     console.log("New websocket connection  %s", req.socket.remoteAddress);
     const interval = +(req?.query?.msg_interval || 100);
+    const statsInterval = +(req?.query?.stats_interval || 1000);
     const latencies = [];
     const maxLatencyCnt = +(req?.query?.max_sample_cnt || 1000);
 
@@ -54,7 +55,7 @@ wss.on('connection', (ws, req) => {
 
             ws.send(data.join('|'));
         }
-    }, 1000);
+    }, statsInterval);
 });
 
 const server = http.createServer((req, res) => {
@@ -77,5 +78,6 @@ server.on('upgrade', function upgrade(request, socket, head) {
     }
 });
 
-server.listen(8000);
-console.log('HTTP server listening on port 8000');
+const port = 8000;
+server.listen(port);
+console.log('HTTP server listening on port ' + port);
