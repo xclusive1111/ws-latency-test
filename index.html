@@ -85,6 +85,7 @@
     console.log(`msg_interval: Send echo every ${msgInterval} milliseconds`);
 
     // Calculate latency stats every 1000 milliseconds
+    // The server will calculate stats at an interval based on this param.
     const statsInterval = +(queries.get("stats_interval") || 1000);
     console.log(`stats_interval: Calculate latency stats every ${statsInterval} milliseconds`);
 
@@ -92,7 +93,7 @@
     const maxSampleCnt = +(queries.get("max_sample_cnt") || 1000);
     console.log(`max_sample_cnt: Calculate stats based on the last ${maxSampleCnt} latencies collected`);
 
-    // Take a stats snapshot every 10 stats samples
+    // Take a stats snapshot and add to the chart every 10 stats samples
     const statsWindowCnt = +(queries.get("stats_window_cnt") || 10);
     console.log(`stats_window_cnt: Take a stats snapshot every ${statsWindowCnt} samples`);
 
@@ -198,14 +199,16 @@
         ws.onmessage = function (e) {
             const parts = e.data.split("|");
             const cmd = parts[0];
+
+            // This is a command from the server telling us that
+            // we should echo back whatever the server has sent.
+            // The server will calculate latency based on this echo roundtrip.
             if (cmd === "echo") {
                 ws.send(e.data);
                 return;
             }
 
-            if (statsCnt === statsWindowCnt) statsCnt = 0;
-            statsCnt++;
-
+            // This command indicates a new stats is calculated
             if (cmd === "stats") {
                 currentStats = [
                     "now: " + parts[6] + "ms",
@@ -219,6 +222,8 @@
                 const now = new Date();
                 logLatency([...currentStats, "Updated at: " + fmtCurrentTime(now)].join("<br>"));
 
+                // Reach max data points in our chart, remove
+                // the oldest data point and re-render the chart
                 if (_75th.length === maxStatsCnt) {
                     _75th.shift();
                     _95th.shift();
@@ -226,6 +231,10 @@
                     chart.render();
                 }
 
+                if (statsCnt === statsWindowCnt) statsCnt = 0;
+                statsCnt++;
+
+                // It's time to add a new data point to the chart
                 if (statsCnt === statsWindowCnt) {
                     _75th.push({x: now, y: +parts[3]})
                     _95th.push({x: now, y: +parts[4]})

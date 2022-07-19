@@ -17,6 +17,8 @@ wss.on('connection', (ws, req) => {
     const latencies = [];
     const maxLatencyCnt = +(req?.query?.max_sample_cnt || 1000);
 
+    // Add latency into the collection
+    // Remove old latency if neccessary
     function addLatency(latency) {
         if (latencies.length === maxLatencyCnt) {
             latencies.shift();
